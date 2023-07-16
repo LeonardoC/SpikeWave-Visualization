@@ -29,7 +29,7 @@ import json
 from process_data import *
 
 # Incorporate data
-data = pd.read_csv('C:/Users/L03109567/Desktop/LNHV- Análisis/E3,4,5,6/LB 1/LB 1.csv', 
+data = pd.read_csv('', 
                    header = None)
 data = data.to_numpy()
 data = data.transpose()
