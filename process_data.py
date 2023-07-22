@@ -48,35 +48,23 @@ def detect_events(data, subject, sfx, mel, llw, prc):
 def split_events(events):
   windows = []
   channels = []
-  i = 0
   large_window = False
-  while i < events.shape[0] - 1:
-    if large_window:
-      if events[i][0] > windows[-1][1]:
-        large_window = False
-      elif events[i][1] > windows[-1][1]:
-        windows[-1][1] = events[i][1]
-        i += 1
-      else:
-        i += 1
 
-    elif events[i][1] < events[i+1][0]:
+  windows.append([events[0][0], events[0][1]])
+  channels.append([events[0][2],])
+
+  i = 1
+  while i < events.shape[0]:
+    if events[i][0] > windows[-1][1]:
       windows.append([events[i][0], events[i][1]])
       channels.append([events[i][2],])
-      i += 1
     else:
-      large_window = True
-      windows.append([events[i][0], events[i+1][1]])
-      channels.append([events[i][2], events[i+1][2]])
-      i += 2
+      windows[-1][1] = events[i][1]
+      set_channels = set(channels[-1])
+      set_channels.add(events[i][2])
+      channels[-1] = list(set_channels)
+    i += 1
 
-  if large_window:
-    if events[-1][1] > windows[-1][1]:
-      windows[-1][1] = events[-1][1]
-
-  else:
-    windows.append([events[-1][0], events[-1][1]])
-    channels.append([events[-1][2],])
   return windows, channels
 
 
