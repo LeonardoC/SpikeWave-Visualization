@@ -105,7 +105,7 @@ app.layout = html.Div([
 def update_graph(subject, prc, llw):
    windows = main(data, subject, sfx, mel, llw, prc)
    windows_json = json.dumps(windows)
-   fig = update_graph(windows_json, 0, [], 0.1)
+   fig = update_window(windows_json, 0, [])
    #print(len(windows[0]), len(windows[1]))
    return windows_json, fig, 1, len(windows[0]), 0, []
 
@@ -116,7 +116,7 @@ def update_graph(subject, prc, llw):
     Input(component_id='input_window', component_property='value'),
     Input(component_id='input_reflect', component_property='value')
 )
-def update_graph(windows_json, window, reflect):
+def update_window(windows_json, window, reflect):
     windows = json.loads(windows_json)
     if not window:
        window = 0
