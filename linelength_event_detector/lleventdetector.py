@@ -121,6 +121,6 @@ def lleventdetector(L, sfx, prc, mel, llw):
     ech = channels
 
     # Center LL transform window
-    ets = (np.round(ets + (sfx * llw) / 2))
+    ets = (np.round(ets + [(sfx * llw)/2, (sfx * llw)/2]))
 
     return ets, ech

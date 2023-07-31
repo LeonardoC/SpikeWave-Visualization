@@ -27,12 +27,26 @@ from linelength_event_detector.lleventdetector import *
 from linelength_event_detector.lltransform import *
 import json
 from process_data import *
+from scipy.signal import find_peaks, peak_prominences
 
 # Incorporate data
-data = pd.read_csv(r'', 
+data = pd.read_csv(r"C:\Users\L03109567\Desktop\O4-E10,112,13.csv", 
                    header = None)
 data = data.to_numpy()
 data = data.transpose()
+
+channels = data.shape[0]
+mean_prominences = []
+mean_prominences_reflected = []
+
+for channel in range(channels):
+    peaks, _ = find_peaks(-data[channel])
+    mean_prominence = peak_prominences(-data[channel], peaks)[0].mean()
+    mean_prominences.append(mean_prominence)
+    # For reflected channels
+    peaks, _ = find_peaks(data[channel])
+    mean_prominence = peak_prominences(data[channel], peaks)[0].mean()
+    mean_prominences_reflected.append(mean_prominence)
 
 def main(data, subject, sfx, mel, llw, prc):
     events = [[],[]]
@@ -83,6 +97,12 @@ app.layout = html.Div([
         #           dcc.Input(id='input_picos', type='number', value = 0.1)],
         #           style={'display': 'inline-block', 'margin-left': '2em'})
     ]),
+    html.Div([
+        html.P("", id = "output_tiempo"),
+        html.P("", id = "output_duracion"),
+        html.P("", id = "output_picos"),
+        html.P("", id = "output_frecuencia")
+    ]),
     dcc.Graph(figure={}, id='controls-and-graph'),
     
     dcc.Store(id='windows', data=json.dumps(windows))
@@ -93,6 +113,10 @@ app.layout = html.Div([
     Output('windows', 'data'),
     Output(component_id='controls-and-graph', component_property='figure',
            allow_duplicate=True),
+    Output(component_id='output_tiempo', component_property='children', allow_duplicate = True),
+    Output(component_id='output_duracion', component_property='children', allow_duplicate = True),
+    Output(component_id='output_picos', component_property='children', allow_duplicate = True),
+    Output(component_id='output_frecuencia', component_property='children', allow_duplicate = True),
     Output(component_id='input_window', component_property='min'),
     Output(component_id='input_window', component_property='max'),
     Output(component_id='input_window', component_property='value'),
@@ -105,18 +129,25 @@ app.layout = html.Div([
 def update_graph(subject, prc, llw):
    windows = main(data, subject, sfx, mel, llw, prc)
    windows_json = json.dumps(windows)
-   fig = update_window(windows_json, 0, [])
+   fig, tiempo, duracion, picos, frecuencia= update_window(windows_json, 1, [], subject)
    #print(len(windows[0]), len(windows[1]))
-   return windows_json, fig, 1, len(windows[0]), 0, []
+   min = 1
+   max = len(windows[0])
+   return windows_json, fig, tiempo, duracion, picos, frecuencia, min, max, 1, []
 
 
 @callback(
     Output(component_id='controls-and-graph', component_property='figure'),
+    Output(component_id='output_tiempo', component_property='children'),
+    Output(component_id='output_duracion', component_property='children'),
+    Output(component_id='output_picos', component_property='children'),
+    Output(component_id='output_frecuencia', component_property='children'),
     Input('windows', 'data'),
     Input(component_id='input_window', component_property='value'),
-    Input(component_id='input_reflect', component_property='value')
+    Input(component_id='input_reflect', component_property='value'),
+    Input(component_id='input_subject', component_property='value')
 )
-def update_window(windows_json, window, reflect):
+def update_window(windows_json, window, reflect, subject):
     windows = json.loads(windows_json)
     if not window:
        window = 0
@@ -125,7 +156,6 @@ def update_window(windows_json, window, reflect):
     channels = windows[1][window]
     channels = sorted([int(channel) for channel in channels])
 
-    nchannels = len(channels)
     nsamples = data.shape[1]
     time = [i / sfx for i in range(nsamples)]
 
@@ -138,28 +168,42 @@ def update_window(windows_json, window, reflect):
                         "Espiga detectada" if 2 in channels else "SIN espiga"))
     n_hills = []    
     for i in range(2):
-        fig_data = data[i][start:end]
+        channel = subject*2 + i
+        fig_data = data[channel][start:end]
         if reflect and (i + 1) in reflect:
             fig_data = -fig_data
-        #picos_data = [i if i > umbral_picos else 0 for i in fig_data]
-        picos_data = fig_data
-        diffs = np.diff(picos_data)
-        hills = list(map(detect_hill, zip(diffs[:-1], diffs[1:])))
-        n_hills.append(sum(hills))
+            peaks, _ = find_peaks(-fig_data, prominence = mean_prominences_reflected[channel])
+        else:
+            peaks, _ = find_peaks(-fig_data, prominence = mean_prominences[channel])
 
+        n_hills.append(len(peaks))
 
         fig.append_trace(go.Scatter(
             x=time[start:end],
             y=fig_data,
-            name=i + 1,
+            name=f'Channel {i + 1}',
             line=dict(color='blue' if i == 0 else 'red')
         ), row=i + 1, col=1)
-    fig.update_layout(height=300*2, showlegend= True)
 
-    fig.add_annotation(text= f'Picos:{n_hills}', x=0.5, y=1,
-                       xref="paper", yref="paper",
-                       showarrow=False)
-    return fig
+        fig.append_trace(go.Scatter(
+            x=[time[start:end][i] for i in peaks],
+            y=fig_data[peaks],
+            name=f'Peaks {i + 1}',
+            mode='markers',
+            visible='legendonly'
+        ), row=i + 1, col=1)
+        
+
+    fig.update_layout(height=300*2, showlegend= True)
+    fig.update_xaxes(range=(time[start], time[end]), row = 1, col = 1)
+    fig.update_xaxes(range=(time[start], time[end]), row = 2, col = 1)
+    timespan = time[end] - time[start]
+    return (
+        fig, 
+        f'Tiempo: [{time[start]:.2f}, {time[end]:.2f}]', 
+        f'Duración: {timespan:.2f}',
+        f'Picos: {n_hills}',
+        f'Frecuencia: [{n_hills[0] / timespan:.2f}, {n_hills[1] / timespan:.2f}]')
 
 # def update_graph(window):
 #     if not window:
